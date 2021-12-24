@@ -1,0 +1,18 @@
+{
+ name: sl
+ displayName: "[cyan]snake lib[]"
+ author: ''''
+ [accent]Mod Creator[]: Pankiwi 
+ 
+ [accentBack] contributors[]: 
+ 
+ uujuju (make sprite basic unit)
+ 
+ '''
+ description: '''
+ lib snake unit for java scripts  v7
+ '''
+ version: beta 1
+ minGameVersion: 130
+ repo: pankiwi/snake-lib
+}
