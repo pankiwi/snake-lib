@@ -12,7 +12,7 @@
  description: '''
  lib snake unit for java scripts  v7
  '''
- version: beta 1
+ version: beta 2
  minGameVersion: 130
  repo: pankiwi/snake-lib
 }
