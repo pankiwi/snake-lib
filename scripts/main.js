@@ -2,7 +2,7 @@
  * Registers a unit's class for I/O stuff (saves and net)
  * Requires unit.constructor.get() to have classId: () => unit.classId
  */
- // prog mat js
+// prog mat js
 let registerClass = unit => {
   // Register unit's name
   EntityMapping.nameMap.put(unit.name, unit.constructor);
@@ -76,57 +76,67 @@ let unitBodySnek = (name, obj, objb) => {
     }
   }, obj);
 
-  //you can make custom constructor
 
-  objb = Object.assign({
+  let unitBody = extend(UnitType, name, obj);
+
+  unitBody.constructor = () => extend(UnitEntity, Object.assign({
     _owner: null,
     _nextSegment: null, //unit
     offsetNextSegment: 0,
+    add(){
+      if(this.getOwner() != null) this.super$add();
+    },
     //nom move
     update() {
       this.super$update();
 
-      if (this.getOwner() != null && this.team != this.getOwner().team) this.team = this.getOwner().team;
+      this.updateBody();
+    },
+    updateBody() {
+      let owner = this.getOwner();
 
-      if (this.getOwner() === null || this.getOwner().dead) this.kill();
+      if (owner != null && this.team != owner.team) this.team = owner.team;
 
+      if (owner == null || owner.dead) this.kill();
 
-
-      this.updateMove();
+      if (owner != null || !owner.dead) this.updateMove();
     },
     updateMove() {
       if (this.getNextSegment() != null && !this.getNextSegment().dead) {
-        ;
+
         let next = this.getNextSegment();
 
-        Tmp.v1.trns(Angles.angle(this.x, this.y, next.x, next.y), -unitBody.offsetSegment);
+        let dst = this.getDistanceNextSegment();
 
-        let angle = Angles.angle(this.x, this.y, next.x + Tmp.v1.x, next.y + Tmp.v1.y);
+        Tmp.v2.trns(Angles.angle(this.x, this.y, next.x, next.y), -unitBody.offsetSegment);
 
-        let dst = Mathf.dst(this.x, this.y, next.x + Tmp.v1.x, next.y + Tmp.v1.y);
-      // + 8 is for wooble, calculated distance
-        if (dst > unitBody.offsetSegment + 8) {
+
+        if (dst > unitBody.offsetSegment) {
 
           Tmp.v3.trns(
-            angle,
+            Angles.angle(this.x, this.y, next.x + Tmp.v2.x, next.y + Tmp.v2.y),
             this.speed()
           );
           this.moveAt(Tmp.v3);
         }
-        //if distnace is big
-        if (dst > unitBody.offsetSegment * 4) {
-          this.set(next.x + Tmp.v1.x, next.y + Tmp.v1.y);
-          this.rotation = angle;
-        }
-
       }
+    },
+    getDistanceNextSegment() {
+      let next = this.getNextSegment();
+      
+      if (next == null || next.dead) return -100;
+
+      Tmp.v1.trns(Angles.angle(this.x, this.y, next.x, next.y), -unitBody.offsetSegment);
+
+      return Mathf.dst(this.x, this.y, next.x + Tmp.v1.x, next.y + Tmp.v1.y) - (this.hitSize + 10);
     },
     isAI() {
       return false; //you can't control go brrrrrrr
     },
     speed() {
-      return this.getOwner().speed();
+      return this.getOwner().speed() + (((this.getDistanceNextSegment())/(unitBody.offsetSegment + this.hitSize)) * 0.1);
     },
+    impulseNet(vec) {},
     cap() {
       return this.count() + 1;
     },
@@ -162,12 +172,7 @@ let unitBodySnek = (name, obj, objb) => {
 
     },
     classId: () => unitBody.classId
-  }, objb)
-
-
-  let unitBody = extend(UnitType, name, obj);
-
-  unitBody.constructor = () => extend(UnitEntity, clone(objb));
+  }, objb));
 
   registerClass(unitBody);
 
@@ -188,26 +193,25 @@ let unitHeadSnek = (name, obj, objb) => {
     flying: true
   }, obj);
 
-  objb = Object.assign({
+
+  let unitHead = extend(UnitType, name, obj);
+
+  unitHead.constructor = () => extend(UnitEntity, Object.assign({
     _segments: [],
     totalSegments: 0,
     setSneak: false,
-    setType(type){
-      Log.info("a");
-      this.super$setType(type);
-    },
     add() {
       //create segments
       this.super$add();
 
-      if (!this.setSneak) this.spawSegments();
+      if (!this.setSneak) this.createSegments();
     },
     update() {
       this.super$update();
 
-      this.updateListSegments();
+      this.updateHead();
     },
-    updateListSegments() {
+    updateHead() {
       //if has changes array segments
       if (this._segments.filter(unit => unit != null && !unit.dead).length != this.totalSegments) {
         this._segments = this._segments.filter(unit => unit != null && !unit.dead);
@@ -218,14 +222,17 @@ let unitHeadSnek = (name, obj, objb) => {
         for (let i = 0; i < this._segments.length; i++) {
           let lastUnit = this._segments[i - 1] ? this._segments[i - 1] : this.self;
           let now = this._segments[i];
-          
-          if(now != null || !now.dead) now.setNextSegment(lastUnit, unitHead.offsetSegments);
+
+          if (now != null && !now.dead) now.setNextSegment(lastUnit);
         }
       }
       //ohno
-      if (this.totalSegments < 1) this.kill();
+      if (this.canDeadBySegments(this.totalSegments)) this.kill();
     },
-    setCoords() {
+    canDeadBySegments(amount) {
+      return amount < 1
+    },
+    CreateInitialCoords() {
       //create array or use seq
       let coordsSegments = [];
 
@@ -235,21 +242,19 @@ let unitHeadSnek = (name, obj, objb) => {
 
         let vec = new Vec2();
         //offset head is default
-        vec.trns(this.rotation, -(unitHead.offsetSegment * 2));
+        vec.trns(this.rotation, -(unitHead.offsetSegment + this.hitSize));
 
         vec.add(last.x, last.y);
 
         coordsSegments[i] = vec;
       }
-      
+
       return coordsSegments;
     },
-    spawSegments() {
+    createSegments() {
       this.setSneak = true;
 
-      Log.info("create sneak");
-
-      let coordsSegments = this.setCoords();
+      let coordsSegments = this.CreateInitialCoords();
       //:b anti error
       if (unitHead.body != null || unitHead.end != null) {
         //create childs
@@ -286,12 +291,9 @@ let unitHeadSnek = (name, obj, objb) => {
     },
     addChild(unit) {
       //this all
-
       this._segments.push(unit);
 
       this.totalSegments = this._segments.length;
-
-      Log.info("add child: " + unit.id + "-" + this._segments.length + "-" + this.totalSegments);
     },
     write(write) {
       this.super$write(write);
@@ -308,11 +310,7 @@ let unitHeadSnek = (name, obj, objb) => {
       this.setSneak = read.bool();
     },
     classId: () => unitHead.classId
-  }, objb);
-
-  let unitHead = extend(UnitType, name, obj);
-
-  unitHead.constructor = () => extend(UnitEntity, clone(objb));
+  }, objb));
 
   registerClass(unitHead);
 
@@ -401,24 +399,22 @@ const bombBody = extend(Weapon, {
 
 
 const routerBodyEnd = unitBodySnek("snakeEnd", {
-  hitSize: 5,
+  hitSize: 10,
   //health: 1000,
-  shareLife: true,
-  offsetSegment: 5
-})
+  offsetSegment: -4
+}, {})
 
 routerBodyEnd.defaultController = nullIA;
 
 const routerBody = unitBodySnek("snakeBody", {
-  hitSize: 5,
+  hitSize: 10,
   //health: 2000,
-  shareLife: true,
   engines: 2,
   engineSize: 3,
   engineRotOffset: 90,
-  engineOffset: 8,
-  offsetSegment: 6
-})
+  engineOffset: 10,
+  offsetSegment: -1
+}, {})
 
 routerBody.defaultController = nullIA;
 
@@ -427,10 +423,9 @@ routerBody.weapons.add(bombBody, cannonBody);
 const routerUnit = unitHeadSnek("snake", {
   body: routerBody,
   end: routerBodyEnd,
-  offsetSegment: 6,
+  offsetSegment: 10,
   lengthSnake: 10,
-  hitSize: 5,
-  health: 10000
-})
+  hitSize: 10
+}, {})
 
 routerUnit.weapons.add(cannonHead);
