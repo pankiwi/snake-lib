@@ -10,9 +10,11 @@
  
  '''
  description: '''
- lib snake unit for java scripts  v7
+ It is a javaScript/js library customizable to create snake type units / work
+ 
+ Has Mindustry V7 sopport
  '''
- version: beta 2
+ version: 1.0
  minGameVersion: 130
  repo: pankiwi/snake-lib
 }
